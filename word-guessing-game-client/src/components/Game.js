@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import './Game.css'; // Import the CSS file for styling
 
-const Game = ({ team1Name, team2Name, onRestartGame }) => {
+const Game = ({ team1Name, team2Name, onRestartGame, rounds }) => {
   const [gameState, setGameState] = useState({
     team_1_score: 0,
     team_2_score: 0,
     current_turn: 1,
-    word_description: ''
+    word_description: '',
+    current_hint: '',
+    rounds_left: rounds,
   });
   const [currentDescription, setCurrentDescription] = useState('');
   const [hint, setHint] = useState('');
@@ -20,12 +21,30 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
   const [roundNumber, setRoundNumber] = useState(1);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [wordLength, setWordLength] = useState(0);
+  const [words, setWords] = useState([]);
+  const [loading, setLoading] = useState(true); // Add loading state
+
+  useEffect(() => {
+    // Load words from the JSON file in the public folder
+    fetch('/top_1000_words.json')
+      .then(response => response.json())
+      .then(data => {
+        const formattedWords = data.map(item => ({
+          word: item[0],
+          description: item[1].definitions[0].definition,
+          hint: item[1].definitions[0].synonyms ? item[1].definitions[0].synonyms[0] : '',
+        }));
+        setWords(formattedWords);
+        setLoading(false); // Set loading to false after fetching words
+      })
+      .catch(error => console.error('Error fetching words:', error));
+  }, []);
 
   useEffect(() => {
     if (gameStarted && !waitingForOtherTeam && !roundOver) {
       fetchWord();
     }
-  }, [gameStarted, waitingForOtherTeam, roundOver]);
+  }, [gameStarted, waitingForOtherTeam, roundOver, words]);
 
   useEffect(() => {
     if (timeLeft > 0 && !gameOver && gameStarted && !roundOver) {
@@ -38,27 +57,23 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
     }
   }, [timeLeft, gameOver, gameStarted, roundOver]);
 
-  const fetchWord = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/get_word');
-      setCurrentDescription(response.data.description);
-      setCurrentAnswer(response.data.word);
-      setWordLength(response.data.letters);
+  const fetchWord = () => {
+    if (words.length > 0) {
+      const randomWord = words[Math.floor(Math.random() * words.length)];
+      setCurrentDescription(randomWord.description);
+      setCurrentAnswer(randomWord.word);
+      setWordLength(randomWord.word.length);
       setHint('');
-      setGameState(prevState => ({ ...prevState, word_description: response.data.word }));
+      setGameState(prevState => ({ ...prevState, word_description: randomWord.word }));
       setTimeLeft(waitingForOtherTeam ? 10 : 60);
-    } catch (error) {
-      console.error('Error fetching word:', error);
     }
   };
 
-  const fetchHint = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/get_hint');
-      setHint(response.data.hint);
+  const fetchHint = () => {
+    if (currentAnswer && !waitingForOtherTeam) {
+      const word = words.find(word => word.word === currentAnswer);
+      setHint(word.hint);
       setHintUsed(true);
-    } catch (error) {
-      console.error('Error fetching hint:', error);
     }
   };
 
@@ -66,55 +81,42 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
     handleAction('pass');
   };
 
-  const handleAction = async (action) => {
-    try {
-      const response = await axios.post('http://localhost:5000/submit_guess', { action });
-      if (response.data.error) {
-        console.error('Error:', response.data.error);
-        return;
-      }
-
-      if (action === 'correct') {
-        const points = hintUsed || waitingForOtherTeam ? 10 : 20;
-        setGameState(prevState => {
-          const newScore = prevState.current_turn === 1
-            ? { team_1_score: prevState.team_1_score + points }
-            : { team_2_score: prevState.team_2_score + points };
-          return { ...prevState, ...newScore };
-        });
-
-        setHintUsed(false);
-
-        if (waitingForOtherTeam) {
-          setWaitingForOtherTeam(false);
-          setRoundOver(true);
-        } else {
-          setRoundOver(true);
-          setGameState(prevState => ({ ...prevState, current_turn: prevState.current_turn === 1 ? 2 : 1 }));
-        }
+  const handleAction = (action) => {
+    if (action === 'correct') {
+      const points = hintUsed || waitingForOtherTeam ? 10 : 20;
+      setGameState(prevState => {
+        const newScore = prevState.current_turn === 1
+          ? { team_1_score: prevState.team_1_score + points }
+          : { team_2_score: prevState.team_2_score + points };
+        return { ...prevState, ...newScore };
+      });
+  
+      setHintUsed(false);
+  
+      if (waitingForOtherTeam) {
+        setWaitingForOtherTeam(false);
+        setRoundOver(true);
       } else {
-        if (waitingForOtherTeam) {
-          setWaitingForOtherTeam(false);
-          setRoundOver(true);
-        } else {
-          setWaitingForOtherTeam(true);
-          setTimeLeft(10);
-          setGameState(prevState => ({ ...prevState, current_turn: prevState.current_turn === 1 ? 2 : 1 }));
-        }
+        setRoundOver(true);
+        setGameState(prevState => ({ ...prevState, current_turn: prevState.current_turn === 1 ? 2 : 1 }));
       }
-
-      if (response.data.game_over) {
-        setGameOver(true);
+    } else { // Handle "Wrong" or "Pass" action
+      if (waitingForOtherTeam) { // If already waiting for the other team
+        setRoundOver(true); // End the round
+      } else { // If it's the first wrong or pass action
+        setWaitingForOtherTeam(true); // Set waiting for the other team
+        setTimeLeft(10); // Reset time for the other team
+        setGameState(prevState => ({ ...prevState, current_turn: prevState.current_turn === 1 ? 2 : 1 }));
       }
-    } catch (error) {
-      console.error('Error handling action:', error);
     }
   };
+  
 
   const startGame = () => {
     setGameStarted(true);
     setGameOver(false);
     setGameState(prevState => ({ ...prevState, current_turn: 1 }));
+    fetchWord(); // Ensure the first word is fetched
   };
 
   const restartGame = () => {
@@ -126,26 +128,32 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
       team_1_score: 0,
       team_2_score: 0,
       current_turn: 1,
-      word_description: ''
+      word_description: '',
+      rounds_left: rounds, // Reinitialize with the number of rounds
     });
     onRestartGame();
   };
 
   const nextRound = () => {
-    setRoundOver(false);
-    setHintUsed(false);
-    setWaitingForOtherTeam(false);
-    setRoundNumber(prevRound => prevRound + 1);
-    fetchWord();
+    if (roundNumber < rounds) {
+      setRoundOver(false);
+      setHintUsed(false);
+      setWaitingForOtherTeam(false);
+      setRoundNumber(prevRound => prevRound + 1);
+      fetchWord();
+    } else {
+      setGameOver(true); // Set gameOver to true when maximum rounds are reached
+    }
   };
+  
+
+  if (loading) {
+    return <div>Loading...</div>; // Show loading while fetching words
+  }
 
   if (!gameStarted) {
     startGame();
     return null;
-  }
-
-  if (!currentDescription && !waitingForOtherTeam && !roundOver) {
-    return <div>Loading...</div>;
   }
 
   return (
@@ -164,7 +172,7 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
           <div className="hint">Hint: {hint}</div>
           <div className="time-left">Time Left: {timeLeft} seconds</div>
           <div className="current-turn">Current Turn: {gameState.current_turn === 1 ? team1Name : team2Name}</div>
-          <button onClick={fetchHint} disabled={gameOver || roundOver}>Get Hint</button>
+          <button onClick={fetchHint} disabled={gameOver || roundOver || waitingForOtherTeam}>Get Hint</button>
           <div className="action-buttons">
             <button onClick={() => handleAction('correct')} disabled={gameOver || roundOver}>Correct</button>
             <button onClick={() => handleAction('wrong')} disabled={gameOver || roundOver}>Wrong</button>
@@ -175,8 +183,12 @@ const Game = ({ team1Name, team2Name, onRestartGame }) => {
           )}
           {gameOver && (
             <div className="game-over">
-              <h2>Congratulations!</h2>
-              <p>Player {gameState.team_1_score > gameState.team_2_score ? 1 : 2} has won the game with {Math.max(gameState.team_1_score, gameState.team_2_score)} points.</p>
+              <h2>Game Over</h2>
+              {gameState.team_1_score === gameState.team_2_score ? (
+                <p>Match drawn!</p>
+              ) : (
+                <p>Player {gameState.team_1_score > gameState.team_2_score ? 1 : 2} has won the game with {Math.max(gameState.team_1_score, gameState.team_2_score)} points.</p>
+              )}
               <button onClick={restartGame}>Start New Game</button>
             </div>
           )}

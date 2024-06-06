@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import './HostDashboard.css'; // Import CSS file for styling
 
 const HostDashboard = ({ startGame }) => {
@@ -7,13 +6,8 @@ const HostDashboard = ({ startGame }) => {
   const [team1Name, setTeam1Name] = useState('Team 1');
   const [team2Name, setTeam2Name] = useState('Team 2');
 
-  const handleStartGame = async () => {
-    try {
-      await axios.post('http://localhost:5000/start_game', { rounds });
-      startGame(team1Name, team2Name); // Start the game after initializing game state with team names
-    } catch (error) {
-      console.error('Error starting game:', error);
-    }
+  const handleStartGame = () => {
+    startGame(team1Name, team2Name, rounds); // Start the game after initializing game state with team names and rounds
   };
 
   return (

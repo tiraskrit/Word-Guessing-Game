@@ -82,6 +82,10 @@
   .action-buttons button:disabled {
     cursor: not-allowed;
   }
+
+  .status-panel button:disabled {
+    cursor: not-allowed;
+  }
   
   .next-round-button {
     margin-top: 20px;
