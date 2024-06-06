@@ -26,8 +26,8 @@ const Game = ({ team1Name, team2Name, onRestartGame, rounds }) => {
 
   useEffect(() => {
     // Load words from the JSON file in the public folder
-    fetch(`${process.env.PUBLIC_URL}/top_1000_words.json`)
-
+    // fetch(`${process.env.PUBLIC_URL}/top_1000_words.json`)
+    fetch('top_1000_words.json')
       .then(response => response.json())
       .then(data => {
         const formattedWords = data.map(item => ({
