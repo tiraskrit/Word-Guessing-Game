@@ -146,7 +146,6 @@ const Game = ({ team1Name, team2Name, onRestartGame, rounds }) => {
       setGameOver(true); // Set gameOver to true when maximum rounds are reached
     }
   };
-  
 
   if (loading) {
     return <div>Loading...</div>; // Show loading while fetching words
@@ -157,12 +156,18 @@ const Game = ({ team1Name, team2Name, onRestartGame, rounds }) => {
     return null;
   }
 
+  const team1Class = gameState.team_1_score > gameState.team_2_score ? 'team-panel team1 winning' :
+    gameState.team_1_score < gameState.team_2_score ? 'team-panel team1 losing' : 'team-panel team1 equal';
+
+  const team2Class = gameState.team_1_score < gameState.team_2_score ? 'team-panel team2 winning' :
+    gameState.team_1_score > gameState.team_2_score ? 'team-panel team2 losing' : 'team-panel team2 equal';
+
   return (
     <div className="game-container">
       <h1 className="title">Word Guessing Game</h1>
       <div className="round-info">Round {roundNumber}</div>
       <div className="score-container">
-        <div className="team-panel team1">
+        <div className={team1Class}>
           <h2>{team1Name}</h2>
           <div className="score">{gameState.team_1_score} points</div>
         </div>
@@ -194,7 +199,7 @@ const Game = ({ team1Name, team2Name, onRestartGame, rounds }) => {
             </div>
           )}
         </div>
-        <div className="team-panel team2">
+        <div className={team2Class}>
           <h2>{team2Name}</h2>
           <div className="score">{gameState.team_2_score} points</div>
         </div>
